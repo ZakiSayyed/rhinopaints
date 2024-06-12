@@ -8,7 +8,7 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from collections import defaultdict
-
+import time
 
 st.set_page_config(
     page_title='Rhino Paints',
@@ -74,6 +74,13 @@ st.write("<br>", unsafe_allow_html=True)
 st.write("<br>", unsafe_allow_html=True)
 
 st.header("Inventory")
+if st.button("Refresh"):
+    with st.spinner("Refreshing Data"):
+        time.sleep(3)
+        st.session_state.data = load_inventory_data() 
+        st.success("Data refreshed successfully!")
+        time.sleep(3)
+        st.rerun()
 
 # Display editable DataFrame
 edited_df = st.data_editor(st.session_state.data)
@@ -92,15 +99,9 @@ if st.button("Add new row"):
 
 
 st.subheader('Items left', divider='red')
+
 data['Units left'] = data['Units left'].astype(int)
 data['Reorder point'] = data['Reorder point'].astype(int)
-
-# need_to_reorder = data[data['Units left'] <= data['Reorder point']].loc[:, 'Item Name']
-
-# # Display items that need to be reordered
-# if len(need_to_reorder) > 0:
-#     items = '\n'.join(f'* {name}' for name in need_to_reorder)
-#     st.error(f"We're running dangerously low on the items below:\n {items}")
 
 need_to_reorder = data[data['Units left'] <= data['Reorder point']]
 if not need_to_reorder.empty:
