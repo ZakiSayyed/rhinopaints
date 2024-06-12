@@ -1,241 +1,124 @@
-from collections import defaultdict
-from pathlib import Path
-import sqlite3
+import streamlit as st
+import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 import streamlit as st
 import altair as alt
 import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from collections import defaultdict
 
 
 st.set_page_config(
-    page_title='Inventory tracker',
-    page_icon=':shopping_bags:', # This is an emoji shortcode. Could be a URL too.
+    page_title='Rhino Paints',
+    page_icon=':shopping_bags:',
+    layout="wide"
 )
 
+def load_inventory_data():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict({
+        "type": "service_account",
+        "project_id": st.secrets["google_sheets"]["project_id"],
+        "private_key_id": st.secrets["google_sheets"]["private_key_id"],
+        "private_key": st.secrets["google_sheets"]["private_key"],
+        "client_email": st.secrets["google_sheets"]["client_email"],
+        "client_id": st.secrets["google_sheets"]["client_id"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://accounts.google.com/o/oauth2/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": st.secrets["google_sheets"]["client_x509_cert_url"]
+    }, scope)
+    client = gspread.authorize(creds)
+    sheet_id = '1Bsv2n_12_wmWhNI5I5HgCmBWsVyAHFw3rfTGoIrT5ho'
+    sheet = client.open_by_key(sheet_id).get_worksheet(2)
+    sheet_data = sheet.get_all_values()
+    
+    return pd.DataFrame(sheet_data[1:], columns=sheet_data[0])
 
-def connect_db():
-    '''Connects to the sqlite database.'''
+def update_google_sheet(df):
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict({
+        "type": "service_account",
+        "project_id": st.secrets["google_sheets"]["project_id"],
+        "private_key_id": st.secrets["google_sheets"]["private_key_id"],
+        "private_key": st.secrets["google_sheets"]["private_key"],
+        "client_email": st.secrets["google_sheets"]["client_email"],
+        "client_id": st.secrets["google_sheets"]["client_id"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://accounts.google.com/o/oauth2/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": st.secrets["google_sheets"]["client_x509_cert_url"]
+    }, scope)
+    client = gspread.authorize(creds)
+    sheet_id = '1Bsv2n_12_wmWhNI5I5HgCmBWsVyAHFw3rfTGoIrT5ho'
+    sheet = client.open_by_key(sheet_id).get_worksheet(2)
 
-    DB_FILENAME = Path(__file__).parent/'inventory.db'
-    db_already_exists = DB_FILENAME.exists()
+    # Clear existing data
+    sheet.clear()
 
-    conn = sqlite3.connect(DB_FILENAME)
-    db_was_just_created = not db_already_exists
+    # Update with new data
+    sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-    return conn, db_was_just_created
+# Load data
+data = load_inventory_data()
 
+# Initialize session state
+if 'data' not in st.session_state:
+    st.session_state.data = data.copy()
 
-def initialize_data(conn):
-    '''Initializes the inventory table with some data.'''
-    cursor = conn.cursor()
+# Display title
+st.markdown("<h1 style='text-align: center;'>Rhino Paints</h1>", unsafe_allow_html=True)
+st.write("<br>", unsafe_allow_html=True)
+st.write("<br>", unsafe_allow_html=True)
 
-    cursor.execute(
-        '''
-        CREATE TABLE IF NOT EXISTS inventory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_name TEXT,
-            price REAL,
-            units_sold INTEGER,
-            units_left INTEGER,
-            cost_price REAL,
-            reorder_point INTEGER,
-            description TEXT
-        )
-        '''
-    )
+st.header("Inventory")
 
-    cursor.execute(
-        '''
-        INSERT INTO inventory
-            (item_name, price, units_sold, units_left, cost_price, reorder_point, description)
-        VALUES
-            -- Beverages
-            ('Bottled Water (500ml)', 1.50, 115, 15, 0.80, 16, 'Hydrating bottled water'),
-            ('Soda (355ml)', 2.00, 93, 8, 1.20, 10, 'Carbonated soft drink'),
-            ('Energy Drink (250ml)', 2.50, 12, 18, 1.50, 8, 'High-caffeine energy drink'),
-            ('Coffee (hot, large)', 2.75, 11, 14, 1.80, 5, 'Freshly brewed hot coffee'),
-            ('Juice (200ml)', 2.25, 11, 9, 1.30, 5, 'Fruit juice blend'),
+# Display editable DataFrame
+edited_df = st.data_editor(st.session_state.data)
 
-            -- Snacks
-            ('Potato Chips (small)', 2.00, 34, 16, 1.00, 10, 'Salted and crispy potato chips'),
-            ('Candy Bar', 1.50, 6, 19, 0.80, 15, 'Chocolate and candy bar'),
-            ('Granola Bar', 2.25, 3, 12, 1.30, 8, 'Healthy and nutritious granola bar'),
-            ('Cookies (pack of 6)', 2.50, 8, 8, 1.50, 5, 'Soft and chewy cookies'),
-            ('Fruit Snack Pack', 1.75, 5, 10, 1.00, 8, 'Assortment of dried fruits and nuts'),
+# Handle commit changes
+if st.button("Commit"):
+    update_google_sheet(edited_df)
+    st.session_state.data = edited_df.copy()
+    st.success("Changes have been committed to Google Sheets.")
 
-            -- Personal Care
-            ('Toothpaste', 3.50, 1, 9, 2.00, 5, 'Minty toothpaste for oral hygiene'),
-            ('Hand Sanitizer (small)', 2.00, 2, 13, 1.20, 8, 'Small sanitizer bottle for on-the-go'),
-            ('Pain Relievers (pack)', 5.00, 1, 5, 3.00, 3, 'Over-the-counter pain relief medication'),
-            ('Bandages (box)', 3.00, 0, 10, 2.00, 5, 'Box of adhesive bandages for minor cuts'),
-            ('Sunscreen (small)', 5.50, 6, 5, 3.50, 3, 'Small bottle of sunscreen for sun protection'),
-
-            -- Household
-            ('Batteries (AA, pack of 4)', 4.00, 1, 5, 2.50, 3, 'Pack of 4 AA batteries'),
-            ('Light Bulbs (LED, 2-pack)', 6.00, 3, 3, 4.00, 2, 'Energy-efficient LED light bulbs'),
-            ('Trash Bags (small, 10-pack)', 3.00, 5, 10, 2.00, 5, 'Small trash bags for everyday use'),
-            ('Paper Towels (single roll)', 2.50, 3, 8, 1.50, 5, 'Single roll of paper towels'),
-            ('Multi-Surface Cleaner', 4.50, 2, 5, 3.00, 3, 'All-purpose cleaning spray'),
-
-            -- Others
-            ('Lottery Tickets', 2.00, 17, 20, 1.50, 10, 'Assorted lottery tickets'),
-            ('Newspaper', 1.50, 22, 20, 1.00, 5, 'Daily newspaper')
-        '''
-    )
-    conn.commit()
-
-
-def load_data(conn):
-    '''Loads the inventory data from the database.'''
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute('SELECT * FROM inventory')
-        data = cursor.fetchall()
-    except:
-        return None
-
-    df = pd.DataFrame(data,
-        columns=[
-            'id',
-            'item_name',
-            'price',
-            'units_sold',
-            'units_left',
-            'cost_price',
-            'reorder_point',
-            'description',
-        ])
-
-    return df
+# Option to add a new row
+if st.button("Add new row"):
+    new_row = pd.DataFrame({col: "" for col in edited_df.columns}, index=[0])
+    st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
+    st.rerun()  # Rerun to update the interface with the new row
 
 
-def update_data(conn, df, changes):
-    '''Updates the inventory data in the database.'''
-    cursor = conn.cursor()
+st.subheader('Items left', divider='red')
+data['Units left'] = data['Units left'].astype(int)
+data['Reorder point'] = data['Reorder point'].astype(int)
 
-    if changes['edited_rows']:
-        deltas = st.session_state.inventory_table['edited_rows']
-        rows = []
+# need_to_reorder = data[data['Units left'] <= data['Reorder point']].loc[:, 'Item Name']
 
-        for i, delta in deltas.items():
-            row_dict = df.iloc[i].to_dict()
-            row_dict.update(delta)
-            rows.append(row_dict)
+# # Display items that need to be reordered
+# if len(need_to_reorder) > 0:
+#     items = '\n'.join(f'* {name}' for name in need_to_reorder)
+#     st.error(f"We're running dangerously low on the items below:\n {items}")
 
-        cursor.executemany(
-            '''
-            UPDATE inventory
-            SET
-                item_name = :item_name,
-                price = :price,
-                units_sold = :units_sold,
-                units_left = :units_left,
-                cost_price = :cost_price,
-                reorder_point = :reorder_point,
-                description = :description
-            WHERE id = :id
-            ''',
-            rows,
-        )
-
-    if changes['added_rows']:
-        cursor.executemany(
-            '''
-            INSERT INTO inventory
-                (id, item_name, price, units_sold, units_left, cost_price, reorder_point, description)
-            VALUES
-                (:id, :item_name, :price, :units_sold, :units_left, :cost_price, :reorder_point, :description)
-            ''',
-            (defaultdict(lambda: None, row) for row in changes['added_rows']),
-        )
-
-    if changes['deleted_rows']:
-        cursor.executemany(
-            'DELETE FROM inventory WHERE id = :id',
-            ({'id': int(df.loc[i, 'id'])} for i in changes['deleted_rows'])
-        )
-
-    conn.commit()
-
-
-'''
-# :shopping_bags: Inventory tracker
-
-**Welcome to Alice's Corner Store's intentory tracker!**
-This page reads and writes directly from/to our inventory database.
-'''
-
-st.info('''
-    Use the table below to add, remove, and edit items.
-    And don't forget to commit your changes when you're done.
-    ''')
-
-# Connect to database and create table if needed
-conn, db_was_just_created = connect_db()
-
-# Initialize data.
-if db_was_just_created:
-    initialize_data(conn)
-    st.toast('Database initialized with some sample data.')
-
-# Load data from database
-df = load_data(conn)
-
-# Display data with editable table
-edited_df = st.data_editor(
-    df,
-    disabled=['id'], # Don't allow editing the 'id' column.
-    num_rows='dynamic', # Allow appending/deleting rows.
-    column_config={
-        # Show dollar sign before price columns.
-        "price": st.column_config.NumberColumn(format="$%.2f"),
-        "cost_price": st.column_config.NumberColumn(format="$%.2f"),
-    },
-    key='inventory_table')
-
-has_uncommitted_changes = any(len(v) for v in st.session_state.inventory_table.values())
-
-st.button(
-    'Commit changes',
-    type='primary',
-    disabled=not has_uncommitted_changes,
-    # Update data in database
-    on_click=update_data,
-    args=(conn, df, st.session_state.inventory_table))
-
-
-# -----------------------------------------------------------------------------
-# Now some cool charts
-
-# Add some space
-''
-''
-''
-
-st.subheader('Units left', divider='red')
-
-need_to_reorder = df[df['units_left'] < df['reorder_point']].loc[:, 'item_name']
-
-if len(need_to_reorder) > 0:
-    items = '\n'.join(f'* {name}' for name in need_to_reorder)
-
-    st.error(f"We're running dangerously low on the items below:\n {items}")
-
-''
-''
-
+need_to_reorder = data[data['Units left'] <= data['Reorder point']]
+if not need_to_reorder.empty:
+    items = '\n'.join(f'* {row["Item Name"]}: {row["Units left"]} units left' for idx, row in need_to_reorder.iterrows())
+    st.error(f"We're running dangerously low on the items below:\n{items}")
+    
 st.altair_chart(
     # Layer 1: Bar chart.
-    alt.Chart(df)
+    alt.Chart(data)
         .mark_bar(
             orient='horizontal',
         )
         .encode(
-            x='units_left',
-            y='item_name',
+            x='Units left',
+            y='Item Name',
         )
     # Layer 2: Chart showing the reorder point.
-    + alt.Chart(df)
+    + alt.Chart(data)
         .mark_point(
             shape='diamond',
             filled=True,
@@ -244,29 +127,25 @@ st.altair_chart(
             opacity=1,
         )
         .encode(
-            x='reorder_point',
-            y='item_name',
+            x='Reorder point',
+            y='Item Name',
         )
     ,
     use_container_width=True)
 
 st.caption('NOTE: The :diamonds: location shows the reorder point.')
 
-''
-''
-''
-
-# -----------------------------------------------------------------------------
-
 st.subheader('Best sellers', divider='orange')
 
 ''
 ''
 
-st.altair_chart(alt.Chart(df)
-    .mark_bar(orient='horizontal')
-    .encode(
-        x='units_sold',
-        y=alt.Y('item_name').sort('-x'),
-    ),
-    use_container_width=True)
+st.altair_chart(
+    alt.Chart(data)
+        .mark_bar(orient='horizontal')
+        .encode(
+            x='Units sold:Q',
+            y=alt.Y('Item Name:N', sort=alt.EncodingSortField(field='Units sold', order='descending'))
+        ),
+    use_container_width=True
+)
