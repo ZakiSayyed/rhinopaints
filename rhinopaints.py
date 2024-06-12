@@ -1,21 +1,16 @@
 from collections import defaultdict
 from pathlib import Path
 import sqlite3
-
 import streamlit as st
 import altair as alt
 import pandas as pd
 
 
-# Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
     page_title='Inventory tracker',
     page_icon=':shopping_bags:', # This is an emoji shortcode. Could be a URL too.
 )
 
-
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
 
 def connect_db():
     '''Connects to the sqlite database.'''
@@ -163,10 +158,6 @@ def update_data(conn, df, changes):
     conn.commit()
 
 
-# -----------------------------------------------------------------------------
-# Draw the actual page, starting with the inventory table.
-
-# Set the title that appears at the top of the page.
 '''
 # :shopping_bags: Inventory tracker
 
