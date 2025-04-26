@@ -38,7 +38,7 @@ def load_inventory_data():
     }, scope)
     client = gspread.authorize(creds)
     sheet_id = '1Bsv2n_12_wmWhNI5I5HgCmBWsVyAHFw3rfTGoIrT5ho'
-    sheet = client.open_by_key(sheet_id).get_worksheet(2)
+    sheet = client.open_by_key(sheet_id).get_worksheet(0)
     sheet_data = sheet.get_all_values()
     
     return pd.DataFrame(sheet_data[1:], columns=sheet_data[0])
@@ -59,7 +59,7 @@ def update_google_sheet(df):
     }, scope)
     client = gspread.authorize(creds)
     sheet_id = '1Bsv2n_12_wmWhNI5I5HgCmBWsVyAHFw3rfTGoIrT5ho'
-    sheet = client.open_by_key(sheet_id).get_worksheet(2)
+    sheet = client.open_by_key(sheet_id).get_worksheet(0)
 
     # Clear existing data
     sheet.clear()
