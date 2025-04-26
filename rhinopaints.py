@@ -163,13 +163,20 @@ elif choice == 'Best Seller':
 
     ''
     ''
+    data['Sold'] = pd.to_numeric(data['Sold'], errors='coerce')
 
-    st.altair_chart(
-        alt.Chart(data)
-            .mark_bar(orient='horizontal')
-            .encode(
-                x='Units sold:Q',
-                y=alt.Y('Item Name:N', sort=alt.EncodingSortField(field='Units sold', order='descending'))
-            ),
-        use_container_width=True
-    )
+    # Filter out items with empty or zero "Sold" values
+    filtered_data = data[data['Sold'].notna() & (data['Sold'] > 0)]
+
+    if filtered_data.empty:
+        st.info("No items have been sold yet.")
+    else:
+        st.altair_chart(
+            alt.Chart(filtered_data)
+                .mark_bar(orient='horizontal')
+                .encode(
+                    x='Sold:Q',
+                    y=alt.Y('Item Name:N', sort=alt.EncodingSortField(field='Sold', order='descending'))
+                ),
+            use_container_width=True
+        )
